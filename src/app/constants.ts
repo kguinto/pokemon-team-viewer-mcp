@@ -1,0 +1,55 @@
+import type { StatBlock } from "../types.js";
+
+export const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  normal:   { bg: "#A8A878", text: "#fff" },
+  fire:     { bg: "#F08030", text: "#fff" },
+  water:    { bg: "#6890F0", text: "#fff" },
+  grass:    { bg: "#78C850", text: "#fff" },
+  electric: { bg: "#F8D030", text: "#333" },
+  ice:      { bg: "#98D8D8", text: "#333" },
+  fighting: { bg: "#C03028", text: "#fff" },
+  poison:   { bg: "#A040A0", text: "#fff" },
+  ground:   { bg: "#E0C068", text: "#333" },
+  flying:   { bg: "#A890F0", text: "#fff" },
+  psychic:  { bg: "#F85888", text: "#fff" },
+  bug:      { bg: "#A8B820", text: "#fff" },
+  rock:     { bg: "#B8A038", text: "#fff" },
+  ghost:    { bg: "#705898", text: "#fff" },
+  dragon:   { bg: "#7038F8", text: "#fff" },
+  dark:     { bg: "#705848", text: "#fff" },
+  steel:    { bg: "#B8B8D0", text: "#333" },
+  fairy:    { bg: "#EE99AC", text: "#333" },
+};
+
+export const NATURE_EFFECTS: Record<string, { up?: keyof StatBlock; down?: keyof StatBlock }> = {
+  Hardy: {}, Docile: {}, Serious: {}, Bashful: {}, Quirky: {},
+  Lonely: { up: "atk", down: "def" },
+  Brave:  { up: "atk", down: "spe" },
+  Adamant:{ up: "atk", down: "spa" },
+  Naughty:{ up: "atk", down: "spd" },
+  Bold:   { up: "def", down: "atk" },
+  Relaxed:{ up: "def", down: "spe" },
+  Impish: { up: "def", down: "spa" },
+  Lax:    { up: "def", down: "spd" },
+  Timid:  { up: "spe", down: "atk" },
+  Hasty:  { up: "spe", down: "def" },
+  Jolly:  { up: "spe", down: "spa" },
+  Naive:  { up: "spe", down: "spd" },
+  Modest: { up: "spa", down: "atk" },
+  Mild:   { up: "spa", down: "def" },
+  Quiet:  { up: "spa", down: "spe" },
+  Rash:   { up: "spa", down: "spd" },
+  Calm:   { up: "spd", down: "atk" },
+  Gentle: { up: "spd", down: "def" },
+  Sassy:  { up: "spd", down: "spe" },
+  Careful:{ up: "spd", down: "spa" },
+};
+
+export const STAT_LABELS: [keyof StatBlock, string][] = [
+  ["hp",  "HP"],
+  ["atk", "Atk"],
+  ["def", "Def"],
+  ["spa", "SpA"],
+  ["spd", "SpD"],
+  ["spe", "Spe"],
+];
