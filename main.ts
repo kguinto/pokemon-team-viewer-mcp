@@ -1,9 +1,3 @@
-/**
- * Entry point for running the MCP server.
- * Run with: npx @modelcontextprotocol/server-basic-react
- * Or: node dist/index.js [--stdio]
- */
-
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -12,24 +6,14 @@ import cors from "cors";
 import type { Request, Response } from "express";
 import { createServer } from "./server.js";
 
-/**
- * Starts an MCP server with Streamable HTTP transport in stateless mode.
- *
- * @param createServer - Factory function that creates a new McpServer instance per request.
- */
-export async function startStreamableHTTPServer(
-  createServer: () => McpServer,
-): Promise<void> {
+async function startStreamableHTTPServer(createServer: () => McpServer): Promise<void> {
   const port = parseInt(process.env.PORT ?? "3001", 10);
-
   const app = createMcpExpressApp({ host: "0.0.0.0" });
   app.use(cors());
 
   app.all("/mcp", async (req: Request, res: Response) => {
     const server = createServer();
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
     res.on("close", () => {
       transport.close().catch(() => {});
@@ -51,37 +35,24 @@ export async function startStreamableHTTPServer(
     }
   });
 
-  const httpServer = app.listen(port, (err) => {
+  const httpServer = app.listen(port, (err?: Error) => {
     if (err) {
       console.error("Failed to start server:", err);
       process.exit(1);
     }
-    console.log(`MCP server listening on http://localhost:${port}/mcp`);
+    console.log(`Pokemon Team Viewer MCP server listening on http://localhost:${port}/mcp`);
   });
 
   const shutdown = () => {
-    console.log("\nShutting down...");
     httpServer.close(() => process.exit(0));
   };
-
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }
 
-/**
- * Starts an MCP server with stdio transport.
- *
- * @param createServer - Factory function that creates a new McpServer instance.
- */
-export async function startStdioServer(
-  createServer: () => McpServer,
-): Promise<void> {
-  await createServer().connect(new StdioServerTransport());
-}
-
 async function main() {
   if (process.argv.includes("--stdio")) {
-    await startStdioServer(createServer);
+    await createServer().connect(new StdioServerTransport());
   } else {
     await startStreamableHTTPServer(createServer);
   }

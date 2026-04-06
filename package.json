@@ -1,10 +1,10 @@
 {
-  "name": "pokemon-team-viewer-mcp",
+  "name": "pokemon-team-viewer",
   "version": "1.0.0",
   "type": "module",
-  "description": "MCP App — Pokemon team viewer",
+  "description": "MCP App that renders a Pokemon team from Showdown format",
   "scripts": {
-    "build": "tsc --noEmit && cross-env INPUT=mcp-app.html vite build && tsc -p tsconfig.server.json",
+    "build": "cross-env INPUT=mcp-app.html vite build && tsc -p tsconfig.server.json",
     "dev": "cross-env NODE_ENV=development concurrently \"cross-env INPUT=mcp-app.html vite build --watch\" \"tsx --watch main.ts\"",
     "serve": "tsx main.ts",
     "serve:stdio": "tsx main.ts --stdio",
