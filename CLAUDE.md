@@ -3,19 +3,19 @@
 ## Commands
 
 ```bash
-npm run build        # type-check + vite bundle + tsc server types → dist/
-npm run dev          # watch mode: rebuilds UI + restarts server on changes
-npm run serve:stdio  # run server in stdio mode (used by Claude Desktop)
+npm run build        # vite bundle (UI) + esbuild compile (server) → dist/
+npm run dev          # watch mode: vite --watch UI + tsx --watch server (no build needed)
+npm run serve:stdio  # run compiled server in stdio mode (used by Claude Desktop)
 ```
 
-After any change to `server.ts` or `src/`, run `npm run build` before testing in Claude Desktop (the stdio server is launched from `dist/` or source via `tsx`, but the UI bundle in `dist/mcp-app.html` must be rebuilt).
+After any change to `src/`, run `npm run build` before testing in Claude Desktop — it needs the compiled `dist/main.js`. In dev mode, `tsx` runs the server directly from source so no build is needed.
 
 ## Architecture
 
-Two-part MCP App: a **tool** the model calls, and a **resource** that serves the bundled HTML UI. Both are registered in `server.ts`. The host links them via `_meta.ui.resourceUri` on the tool registration.
+Two-part MCP App: a **tool** the model calls, and a **resource** that serves the bundled HTML UI. Both are registered in `src/server.ts`. The host links them via `_meta.ui.resourceUri` on the tool registration.
 
 ```
-server.ts
+src/server.ts
 ├── registerAppTool("view-pokemon-team")   ← model calls this with team text
 │     _meta.ui.resourceUri → "ui://view-pokemon-team/mcp-app.html"
 └── registerAppResource("ui://...")        ← host fetches this, renders in iframe
@@ -44,14 +44,14 @@ Two failure modes require fallbacks:
 2. **No bare-species entry** (Landorus, Tornadus, Deoxys, Giratina, Urshifu, etc.): `/pokemon/landorus` 404s; fall back to `/pokemon-species/landorus` → get default variety name → fetch that.
 
 ### Claude Desktop config
-The server runs as a stdio subprocess. The entry point must be an **absolute path** — relative paths resolve against `/`, not the project dir:
+The server runs as a compiled stdio subprocess (`dist/main.js`). Run `npm run build` first, then restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
-    "pokemon-team-viewer-mcp": {
-      "command": "/Users/kirk/code/pokemon-team-viewer-mcp/node_modules/.bin/tsx",
-      "args": ["/Users/kirk/code/pokemon-team-viewer-mcp/main.ts", "--stdio"]
+    "pokemon-team-viewer": {
+      "command": "node",
+      "args": ["/Users/kirk/code/pokemon-team-viewer-mcp/dist/main.js", "--stdio"]
     }
   }
 }

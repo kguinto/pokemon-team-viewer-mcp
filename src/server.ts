@@ -4,14 +4,14 @@ import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/s
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { parseShowdownTeam } from "./src/server/parser.js";
-import { fetchTypes, speciesIdForPokeAPI } from "./src/server/pokeapi.js";
-import { fetchItemSpriteNum, showdownSpriteId } from "./src/server/sprites.js";
-import type { PokemonSet, TeamData } from "./src/types.js";
+import { parseShowdownTeam } from "./server/parser.js";
+import { fetchTypes, speciesIdForPokeAPI } from "./server/pokeapi.js";
+import { fetchItemSpriteNum, showdownSpriteId } from "./server/sprites.js";
+import type { PokemonSet, TeamData } from "./types.js";
 
 const DIST_DIR = import.meta.filename.endsWith(".ts")
-  ? path.join(import.meta.dirname, "dist")
-  : import.meta.dirname;
+  ? path.join(import.meta.dirname, "../dist")  // running from src/ in dev
+  : import.meta.dirname;                         // running from dist/ when compiled
 
 export function createServer(): McpServer {
   const server = new McpServer({

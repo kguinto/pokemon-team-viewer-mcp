@@ -4,10 +4,10 @@
   "type": "module",
   "description": "MCP App that renders a Pokemon team from Showdown format",
   "scripts": {
-    "build": "cross-env INPUT=mcp-app.html vite build && tsc -p tsconfig.server.json",
-    "dev": "cross-env NODE_ENV=development concurrently \"cross-env INPUT=mcp-app.html vite build --watch\" \"tsx --watch main.ts\"",
-    "serve": "tsx main.ts",
-    "serve:stdio": "tsx main.ts --stdio",
+    "build": "cross-env INPUT=mcp-app.html vite build && esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/main.js",
+    "dev": "cross-env NODE_ENV=development concurrently \"cross-env INPUT=mcp-app.html vite build --watch\" \"tsx --watch src/main.ts\"",
+    "serve": "node dist/main.js",
+    "serve:stdio": "node dist/main.js --stdio",
     "start": "cross-env NODE_ENV=development npm run build && npm run serve"
   },
   "dependencies": {
@@ -28,6 +28,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
+    "esbuild": "^0.28.0",
     "tsx": "^4.0.0",
     "typescript": "^5.9.3",
     "vite": "^6.0.0",
