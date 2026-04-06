@@ -2,6 +2,8 @@
 
 An [MCP App](https://github.com/modelcontextprotocol/ext-apps) that renders a Pokémon team from [Pokémon Showdown](https://pokemonshowdown.com/) export format. Paste a team export into Claude and ask it to display the team — you'll get a card grid with sprites, types, moves, EVs, and more.
 
+<img width="1625" height="1504" alt="Screenshot 2026-04-06 at 2 01 25 PM" src="https://github.com/user-attachments/assets/547b9f07-9bf8-462f-b661-456a1098fabb" />
+
 ## Overview
 
 Each Pokémon card shows:
