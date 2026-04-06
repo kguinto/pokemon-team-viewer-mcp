@@ -3,19 +3,45 @@
 ## Commands
 
 ```bash
-npm run build        # type-check + vite bundle + tsc server types → dist/
-npm run dev          # watch mode: rebuilds UI + restarts server on changes
-npm run serve:stdio  # run server in stdio mode (used by Claude Desktop)
+npm run build        # vite bundle (UI) + esbuild compile (server) → dist/
+npm run dev          # watch mode: vite --watch UI + tsx --watch server (no build step)
+npm run serve:stdio  # run compiled server in stdio mode (used by Claude Desktop)
 ```
 
-After any change to `server.ts` or `src/`, run `npm run build` before testing in Claude Desktop (the stdio server is launched from `dist/` or source via `tsx`, but the UI bundle in `dist/mcp-app.html` must be rebuilt).
+After any change to `src/`, run `npm run build` before testing in Claude Desktop — it needs the compiled `dist/main.js`. In dev mode, `tsx` runs the server directly from source so no build is needed.
+
+## File structure
+
+```
+src/
+├── types.ts                    shared: StatBlock, PokemonSet, TeamData
+├── main.ts                     entry point — HTTP or stdio MCP server
+├── server.ts                   registerAppTool + registerAppResource
+├── server/
+│   ├── parser.ts               Showdown export format parser
+│   ├── pokeapi.ts              PokéAPI type fetching with fallback logic
+│   └── sprites.ts              sprite URL construction + item spritenum cache
+├── app/
+│   ├── App.tsx                 root React component + MCP lifecycle
+│   ├── constants.ts            TYPE_COLORS, NATURE_EFFECTS, STAT_LABELS
+│   └── components/
+│       ├── TypeBadge.tsx
+│       ├── EVDisplay.tsx
+│       ├── PokemonCard.tsx
+│       └── TeamGrid.tsx
+├── mcp-app.tsx                 Vite entry point (renders <App />)
+├── global.css                  host CSS variable fallbacks, base reset
+└── vite-env.d.ts
+mcp-app.html                    HTML shell for Vite
+vite.config.ts                  builds mcp-app.html → dist/mcp-app.html (single-file)
+```
 
 ## Architecture
 
-Two-part MCP App: a **tool** the model calls, and a **resource** that serves the bundled HTML UI. Both are registered in `server.ts`. The host links them via `_meta.ui.resourceUri` on the tool registration.
+Two-part MCP App: a **tool** the model calls, and a **resource** that serves the bundled HTML UI. Both are registered in `src/server.ts`. The host links them via `_meta.ui.resourceUri` on the tool registration.
 
 ```
-server.ts
+src/server.ts
 ├── registerAppTool("view-pokemon-team")   ← model calls this with team text
 │     _meta.ui.resourceUri → "ui://view-pokemon-team/mcp-app.html"
 └── registerAppResource("ui://...")        ← host fetches this, renders in iframe
@@ -34,24 +60,33 @@ contents: [{ uri, mimeType, text: html, _meta: { ui: { csp: { resourceDomains: [
 ```
 
 ### Item sprites
-PS does **not** serve item icons as individual PNGs for most items. They come from a single sprite sheet (`itemicons-sheet.png`) indexed by `spritenum` from `play.pokemonshowdown.com/data/items.js`. The server fetches and caches this map on first use; the client renders a 24×24 div with `background-position: -(spriteNum % 16 * 24)px -(floor(spriteNum / 16) * 24)px`.
+PS does **not** serve item icons as individual PNGs for most items. They come from a single sprite sheet (`itemicons-sheet.png`) indexed by `spritenum` from `play.pokemonshowdown.com/data/items.js`. The server fetches and caches this map on first use (`src/server/sprites.ts`); the client renders a 24×24 div with:
+
+```
+background-position: -(spriteNum % 16 * 24)px -(floor(spriteNum / 16) * 24)px
+```
 
 PS item IDs are lowercase alphanumeric with no separators — `item.toLowerCase().replace(/[^a-z0-9]/g, "")` — e.g. "Assault Vest" → `"assaultvest"`.
 
 ### PokéAPI type lookups
-Two failure modes require fallbacks:
+Two failure modes require fallbacks (`src/server/pokeapi.ts`):
 1. **Form-name mismatches** (Showdown's `ogerpon-wellspring` ≠ PokéAPI's `ogerpon-wellspring-mask`): retry by stripping the last hyphen segment until a `/pokemon/{id}` hit is found.
 2. **No bare-species entry** (Landorus, Tornadus, Deoxys, Giratina, Urshifu, etc.): `/pokemon/landorus` 404s; fall back to `/pokemon-species/landorus` → get default variety name → fetch that.
 
+### DIST_DIR
+`src/server.ts` resolves `dist/mcp-app.html` differently depending on how it's running:
+- **Dev** (`tsx src/main.ts`): `import.meta.dirname` = `<root>/src`, so uses `../dist`
+- **Compiled** (`node dist/main.js`): `import.meta.dirname` = `<root>/dist`, so uses `.`
+
 ### Claude Desktop config
-The server runs as a stdio subprocess. The entry point must be an **absolute path** — relative paths resolve against `/`, not the project dir:
+Run `npm run build` first. The server runs as a compiled stdio subprocess:
 
 ```json
 {
   "mcpServers": {
-    "pokemon-team-viewer-mcp": {
-      "command": "/Users/kirk/code/pokemon-team-viewer-mcp/node_modules/.bin/tsx",
-      "args": ["/Users/kirk/code/pokemon-team-viewer-mcp/main.ts", "--stdio"]
+    "pokemon-team-viewer": {
+      "command": "node",
+      "args": ["/Users/kirk/code/pokemon-team-viewer-mcp/dist/main.js", "--stdio"]
     }
   }
 }

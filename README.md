@@ -1,8 +1,8 @@
-# Pokemon Team Viewer
+# Pokemon Team Viewer MCP
 
 An [MCP App](https://github.com/modelcontextprotocol/ext-apps) that renders a Pokémon team from [Pokémon Showdown](https://pokemonshowdown.com/) export format. Paste a team export into Claude and ask it to display the team — you'll get a card grid with sprites, types, moves, EVs, and more.
 
-<img width="1625" height="1504" alt="Screenshot 2026-04-06 at 2 01 25 PM" src="https://github.com/user-attachments/assets/547b9f07-9bf8-462f-b661-456a1098fabb" />
+<img width="1625" height="1504" alt="Screenshot 2026-04-06 at 2 01 25 PM" src="https://github.com/user-attachments/assets/547b9f07-9bf8-462f-b661-456a1098fabb" />
 
 ## Overview
 
@@ -14,11 +14,11 @@ Each Pokémon card shows:
 - **EVs/IVs** with nature modifier coloring (green = boosted stat, red = lowered)
 - **Move list**
 
-The UI adapts to the host's light/dark mode and scales responsively to fit however many Pokémon are in the team (up to 6).
+The UI adapts to the host's light/dark mode and scales responsively to fit the team.
 
 ## Architecture
 
-An MCP App has two linked parts registered on the same MCP server: a **tool** the LLM calls, and a **resource** that serves the UI HTML. When the host receives the tool result, it fetches the resource and renders it in an iframe.
+An MCP App has two linked parts on the same MCP server: a **tool** the LLM calls, and a **resource** that serves the UI HTML. When the host receives the tool result, it fetches the resource and renders it in an iframe.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -30,13 +30,14 @@ An MCP App has two linked parts registered on the same MCP server: a **tool** th
 │  4. Iframe receives tool result via postMessage             │
 │  5. React UI displays the team card grid                    │
 └───────────────┬─────────────────────────────────────────────┘
-                │  MCP (HTTP or stdio)
+                │  MCP (stdio)
 ┌───────────────▼─────────────────────────────────────────────┐
-│  MCP Server  (main.ts → server.ts)                          │
+│  MCP Server  (src/main.ts → src/server.ts)                  │
 │                                                             │
 │  Tool: view-pokemon-team                                    │
 │    ├── Parses Showdown export text                          │
 │    ├── Fetches types from PokéAPI for each Pokémon          │
+│    ├── Resolves item spritenums from PS item data           │
 │    └── Returns TeamData in _meta + text summary             │
 │                                                             │
 │  Resource: ui://view-pokemon-team/mcp-app.html              │
@@ -50,7 +51,7 @@ An MCP App has two linked parts registered on the same MCP server: a **tool** th
 Raw Showdown text
        │
        ▼
-  parseShowdownTeam()          (server.ts)
+  parseShowdownTeam()          (src/server/parser.ts)
   ├── parseFirstLine()         → species, nickname, item, gender
   ├── "Ability: …"             → ability
   ├── "EVs: …" / "IVs: …"     → parseStats() → StatBlock
@@ -59,10 +60,11 @@ Raw Showdown text
        │
        ▼
   Parallel enrichment (Promise.all)
-  ├── fetchTypes(species)      → GET pokeapi.co/api/v2/pokemon/{id}
+  ├── fetchTypes(species)      → GET pokeapi.co/api/v2/pokemon/{id}  (src/server/pokeapi.ts)
+  │     with two-stage fallback for form-name mismatches + bare-species 404s
   ├── spriteUrl                → play.pokemonshowdown.com/sprites/gen5[‑shiny]/{id}.png
-  └── itemSpriteUrl            → play.pokemonshowdown.com/sprites/itemicons/{id}.png
-       │
+  └── itemSpriteNum            → spritenum from PS items.js, cached after first fetch
+       │                          (src/server/sprites.ts)
        ▼
   CallToolResult
   ├── content[0].text          → plain-text summary (for non-UI hosts)
@@ -72,34 +74,45 @@ Raw Showdown text
 ### File structure
 
 ```
-pokemon-team-viewer/
-├── main.ts              Entry point — starts HTTP or stdio MCP server
-├── server.ts            Tool + resource registration, Showdown parser, PokeAPI fetch
-├── mcp-app.html         HTML entry point for Vite (references src/mcp-app.tsx)
-├── src/
-│   ├── mcp-app.tsx      React UI — PokemonCard, TypeBadge, EVDisplay, TeamGrid
-│   ├── global.css       Host CSS variable fallbacks, base reset
-│   └── vite-env.d.ts    Vite type reference
-├── vite.config.ts       Builds mcp-app.html → dist/mcp-app.html (single-file bundle)
-├── tsconfig.json        Client-side TypeScript (bundler mode, JSX)
-└── tsconfig.server.json Server-side TypeScript (NodeNext, emitDeclarationOnly)
+src/
+├── types.ts                    shared: StatBlock, PokemonSet, TeamData
+├── main.ts                     entry point — HTTP or stdio MCP server
+├── server.ts                   registerAppTool + registerAppResource
+├── server/
+│   ├── parser.ts               Showdown export format parser
+│   ├── pokeapi.ts              PokéAPI type fetching with fallback logic
+│   └── sprites.ts              sprite URL construction + item spritenum cache
+├── app/
+│   ├── App.tsx                 root React component + MCP lifecycle
+│   ├── constants.ts            TYPE_COLORS, NATURE_EFFECTS, STAT_LABELS
+│   └── components/
+│       ├── TypeBadge.tsx
+│       ├── EVDisplay.tsx
+│       ├── PokemonCard.tsx
+│       └── TeamGrid.tsx
+├── mcp-app.tsx                 entry point for Vite (renders <App />)
+├── global.css                  host CSS variable fallbacks, base reset
+└── vite-env.d.ts
+mcp-app.html                    HTML shell for Vite
+vite.config.ts                  builds mcp-app.html → dist/mcp-app.html (single-file)
 ```
 
-The Vite build uses [`vite-plugin-singlefile`](https://github.com/richardtallent/vite-plugin-singlefile) to inline all JS and CSS into `dist/mcp-app.html`, which is what the MCP resource serves.
+The Vite build uses [`vite-plugin-singlefile`](https://github.com/richardtallent/vite-plugin-singlefile) to inline all JS and CSS into `dist/mcp-app.html`. esbuild compiles `src/main.ts` → `dist/main.js` for the server.
 
 ## Installation
 
 **Requirements:** Node.js 18+, npm
 
 ```bash
-git clone https://github.com/kguinto/pokemon-team-viewer.git
-cd pokemon-team-viewer
+git clone https://github.com/kguinto/pokemon-team-viewer-mcp.git
+cd pokemon-team-viewer-mcp
 npm install
+npm run build
 ```
 
 ## Development
 
-Start the server with file watching (rebuilds UI on change, restarts server on change):
+Start the server with file watching (rebuilds UI and restarts server on changes):
 
 ```bash
 npm run dev
@@ -107,30 +120,36 @@ npm run dev
 
 The MCP server listens at `http://localhost:3001/mcp`.
 
-To run with stdio transport instead (for hosts that use process-based MCP):
+To run the compiled server in stdio mode:
 
 ```bash
-npm run serve:stdio
+npm run build && npm run serve:stdio
 ```
 
-### Connecting to the server
+### Connecting to Claude Desktop
 
-**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "pokemon-team-viewer": {
-      "url": "http://localhost:3001/mcp"
+      "command": "node",
+      "args": ["/path/to/pokemon-team-viewer-mcp/dist/main.js", "--stdio"]
     }
   }
 }
 ```
 
-**basic-host** (local browser testing without Claude Desktop):
+Run `npm run build` first, then restart Claude Desktop.
+
+### Connecting via basic-host (local browser testing)
 
 ```bash
-# In a separate terminal, from the cloned ext-apps repo:
+# Terminal 1
+npm run dev
+
+# Terminal 2 — from the cloned ext-apps repo
 cd /tmp/mcp-ext-apps/examples/basic-host
 npm install
 SERVERS='["http://localhost:3001/mcp"]' npm run start
@@ -141,7 +160,7 @@ SERVERS='["http://localhost:3001/mcp"]' npm run start
 
 ### Manual test
 
-1. Start the server: `npm run dev`
+1. `npm run build && npm run serve` (or `npm run dev`)
 2. Connect a host (Claude Desktop or basic-host)
 3. Invoke `view-pokemon-team` with a Showdown export, e.g.:
 
@@ -166,7 +185,7 @@ IVs: 0 Atk
 - Soft-Boiled
 ```
 
-**Expected result:** A card grid appears with sprites, type badges, item icons, and move lists for each Pokémon.
+**Expected result:** A card grid with sprites, type badges, item icons, and move lists for each Pokémon.
 
 ### Parser edge cases to verify
 
@@ -178,12 +197,5 @@ IVs: 0 Atk
 | `(M)` / `(F)` gender marker | ♂ / ♀ symbol next to name |
 | Non-100 `Level:` | Level badge shown in type row |
 | IVs less than 31 | IV values shown alongside EVs |
-| Species with special chars (Mr. Mime, Farfetch'd, Flabébé) | Types still fetched correctly from PokéAPI |
-
-### Build
-
-```bash
-npm run build   # type-check + vite build + tsc for server types
-```
-
-Output is in `dist/mcp-app.html` (bundled UI) and `dist/server.d.ts` (type declarations).
+| Alternate-form Pokémon (Landorus-Therian, Ogerpon-Wellspring) | Types load correctly via PokéAPI fallback |
+| Special-char species (Mr. Mime, Farfetch'd, Flabébé) | Types still fetched correctly |
