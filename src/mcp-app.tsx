@@ -28,7 +28,7 @@ interface PokemonSet {
   moves: string[];
   types: string[];
   spriteUrl: string;
-  itemSpriteUrl?: string;
+  itemSpriteNum?: number;
 }
 
 interface TeamData {
@@ -231,14 +231,12 @@ function PokemonCard({ pokemon }: { pokemon: PokemonSet }) {
         {/* Item */}
         {pokemon.item && (
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            {pokemon.itemSpriteUrl && (
-              <img
-                src={pokemon.itemSpriteUrl}
-                alt={pokemon.item}
-                width={16} height={16}
-                style={{ imageRendering: "pixelated", flexShrink: 0 }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
+            {pokemon.itemSpriteNum !== undefined && (
+              <div style={{
+                width: 24, height: 24, flexShrink: 0,
+                imageRendering: "pixelated",
+                background: `transparent url(https://play.pokemonshowdown.com/sprites/itemicons-sheet.png?v1) no-repeat -${(pokemon.itemSpriteNum % 16) * 24}px -${Math.floor(pokemon.itemSpriteNum / 16) * 24}px`,
+              }} title={pokemon.item} />
             )}
             <span style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
               {pokemon.item}

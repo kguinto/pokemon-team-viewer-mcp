@@ -34,7 +34,7 @@ export interface PokemonSet {
   moves: string[];
   types: string[];
   spriteUrl: string;
-  itemSpriteUrl?: string;
+  itemSpriteNum?: number;
 }
 
 export interface TeamData {
@@ -177,11 +177,36 @@ function showdownSpriteId(species: string): string {
     .replace(/\.$/, "");
 }
 
-function itemSpriteId(item: string): string {
-  return item
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9\-]/g, "");
+// PS item ID: lowercase, alphanumeric only (matches PS's toID())
+function itemPSId(item: string): string {
+  return item.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Module-level cache for PS item spritenum data
+let itemSpriteNums: Record<string, number> | null = null;
+
+async function fetchItemSpriteNums(): Promise<Record<string, number>> {
+  if (itemSpriteNums) return itemSpriteNums;
+  try {
+    const res = await fetch("https://play.pokemonshowdown.com/data/items.js", {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return (itemSpriteNums = {});
+    const text = await res.text();
+    const result: Record<string, number> = {};
+    for (const m of text.matchAll(/(\w+):\{[^}]*spritenum:(\d+)/g)) {
+      result[m[1]] = parseInt(m[2], 10);
+    }
+    itemSpriteNums = result;
+  } catch {
+    itemSpriteNums = {};
+  }
+  return itemSpriteNums;
+}
+
+async function fetchItemSpriteNum(item: string): Promise<number | undefined> {
+  const nums = await fetchItemSpriteNums();
+  return nums[itemPSId(item)];
 }
 
 async function pokeAPIGet<T>(path: string): Promise<T | null> {
@@ -258,11 +283,9 @@ export function createServer(): McpServer {
             : "https://play.pokemonshowdown.com/sprites/gen5";
           const spriteId = showdownSpriteId(set.species);
           const spriteUrl = `${spriteBase}/${spriteId}.png`;
-          const itemSpriteUrl = set.item
-            ? `https://play.pokemonshowdown.com/sprites/itemicons/${itemSpriteId(set.item)}.png`
-            : undefined;
+          const itemSpriteNum = set.item ? await fetchItemSpriteNum(set.item) : undefined;
 
-          return { ...set, types, spriteUrl, itemSpriteUrl };
+          return { ...set, types, spriteUrl, itemSpriteNum };
         }),
       );
 
