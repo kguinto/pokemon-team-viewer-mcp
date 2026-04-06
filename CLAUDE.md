@@ -4,11 +4,37 @@
 
 ```bash
 npm run build        # vite bundle (UI) + esbuild compile (server) → dist/
-npm run dev          # watch mode: vite --watch UI + tsx --watch server (no build needed)
+npm run dev          # watch mode: vite --watch UI + tsx --watch server (no build step)
 npm run serve:stdio  # run compiled server in stdio mode (used by Claude Desktop)
 ```
 
 After any change to `src/`, run `npm run build` before testing in Claude Desktop — it needs the compiled `dist/main.js`. In dev mode, `tsx` runs the server directly from source so no build is needed.
+
+## File structure
+
+```
+src/
+├── types.ts                    shared: StatBlock, PokemonSet, TeamData
+├── main.ts                     entry point — HTTP or stdio MCP server
+├── server.ts                   registerAppTool + registerAppResource
+├── server/
+│   ├── parser.ts               Showdown export format parser
+│   ├── pokeapi.ts              PokéAPI type fetching with fallback logic
+│   └── sprites.ts              sprite URL construction + item spritenum cache
+├── app/
+│   ├── App.tsx                 root React component + MCP lifecycle
+│   ├── constants.ts            TYPE_COLORS, NATURE_EFFECTS, STAT_LABELS
+│   └── components/
+│       ├── TypeBadge.tsx
+│       ├── EVDisplay.tsx
+│       ├── PokemonCard.tsx
+│       └── TeamGrid.tsx
+├── mcp-app.tsx                 Vite entry point (renders <App />)
+├── global.css                  host CSS variable fallbacks, base reset
+└── vite-env.d.ts
+mcp-app.html                    HTML shell for Vite
+vite.config.ts                  builds mcp-app.html → dist/mcp-app.html (single-file)
+```
 
 ## Architecture
 
@@ -34,17 +60,26 @@ contents: [{ uri, mimeType, text: html, _meta: { ui: { csp: { resourceDomains: [
 ```
 
 ### Item sprites
-PS does **not** serve item icons as individual PNGs for most items. They come from a single sprite sheet (`itemicons-sheet.png`) indexed by `spritenum` from `play.pokemonshowdown.com/data/items.js`. The server fetches and caches this map on first use; the client renders a 24×24 div with `background-position: -(spriteNum % 16 * 24)px -(floor(spriteNum / 16) * 24)px`.
+PS does **not** serve item icons as individual PNGs for most items. They come from a single sprite sheet (`itemicons-sheet.png`) indexed by `spritenum` from `play.pokemonshowdown.com/data/items.js`. The server fetches and caches this map on first use (`src/server/sprites.ts`); the client renders a 24×24 div with:
+
+```
+background-position: -(spriteNum % 16 * 24)px -(floor(spriteNum / 16) * 24)px
+```
 
 PS item IDs are lowercase alphanumeric with no separators — `item.toLowerCase().replace(/[^a-z0-9]/g, "")` — e.g. "Assault Vest" → `"assaultvest"`.
 
 ### PokéAPI type lookups
-Two failure modes require fallbacks:
+Two failure modes require fallbacks (`src/server/pokeapi.ts`):
 1. **Form-name mismatches** (Showdown's `ogerpon-wellspring` ≠ PokéAPI's `ogerpon-wellspring-mask`): retry by stripping the last hyphen segment until a `/pokemon/{id}` hit is found.
 2. **No bare-species entry** (Landorus, Tornadus, Deoxys, Giratina, Urshifu, etc.): `/pokemon/landorus` 404s; fall back to `/pokemon-species/landorus` → get default variety name → fetch that.
 
+### DIST_DIR
+`src/server.ts` resolves `dist/mcp-app.html` differently depending on how it's running:
+- **Dev** (`tsx src/main.ts`): `import.meta.dirname` = `<root>/src`, so uses `../dist`
+- **Compiled** (`node dist/main.js`): `import.meta.dirname` = `<root>/dist`, so uses `.`
+
 ### Claude Desktop config
-The server runs as a compiled stdio subprocess (`dist/main.js`). Run `npm run build` first, then restart Claude Desktop:
+Run `npm run build` first. The server runs as a compiled stdio subprocess:
 
 ```json
 {
